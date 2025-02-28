@@ -13,19 +13,61 @@ const FIXED_EXCLUDED_STRINGS: &[&str] = &[
     "Y-m-d H:i",
 ];
 
+const FIXED_KEY_VARIABLE: &[&str] = &[
+    "Invalid GraphQL response",
+    "Invalid GraphQL query",
+    "No success HTTPS status code",
+    "Unknown error",
+    "GraphQL parse error",
+    "Unauthorized",
+    "The input already exists.",
+    "Invalid IP address",
+    "Invalid input (valid examples: 10.84.1.7, 10.1.1.1 ~ 10.1.1.20, 192.168.10.0/24)",
+    "Invalid input (valid examples: 10.1.1.1 ~ 10.1.1.20)",
+    "The maximum number of input was reached.",
+    "Multiple inputs possible (valid examples: 10.84.1.7, 10.1.1.1 ~ 10.1.1.20, 192.168.10.0/24)",
+    "Multiple IP addresses possible",
+    "(Input Example: 192.168.1.100 ~ 192.168.1.200)",
+    "(Input Example: 192.168.10.0/24)",
+    "Type",
+    "Comparison",
+    "Add another condition",
+    "Add",
+    "Required",
+    "Wrong input",
+    "If you want to change your password, input a new one.",
+    "This field is required.",
+    "Invalid input",
+    "Passwords must match.",
+    "Your password must not constain any spaces.",
+    "Your password must not contain any control characters.",
+    "Your password is too short.",
+    "Your password must contain at least one lowercase alphabet.",
+    "Your password must contain at least one uppercase alphabet.",
+    "Your password must contain at least one number.",
+    "Your password must contain at least one special character.",
+    "Your password must not contain consecutive repeating characters.",
+    "Your password must not contain more than 3 adjacent keyboard characters.",
+    "no spaces, more than 8 characters, at least one number/uppercase/lowercase/special characters, no consecutive repetition, and less than 4 adjacent keyboard characters",
+    "no spaces, more than 7 characters, at least one number/uppercase/lowercase/special characters",
+    "Add a network",
+    "Unauthorized"
+    ];
+
 fn main() -> Result<(), io::Error> {
-    let en_path = "langs/en-US.json";
-    let ko_path = "langs/ko-KR.json";
+    let en_path = "../aice-web/langs/en-US.json";
+    let ko_path = "../aice-web/langs/ko-KR.json";
     let _en_key_list = extract_keys_from_json(en_path)?;
     let _ko_key_list = extract_keys_from_json(ko_path)?;
-    let rs_files = get_files_with_extension("src", "rs")?;
-    let css_files = get_files_with_extension("static", "css")?;
+    let web_files = get_files_with_extension("../aice-web/src", "rs")?;
+    let css_files = get_files_with_extension("../aice-web/static", "css")?;
+    let frontary_file_paths = get_files_with_extension("../frontary", "rs")?;
     let css_classes_and_ids = extract_css_classes_and_ids(&css_files)?;
 
     let re = Regex::new(r#""([^"\\]*(\\.[^"\\]*)*)""#)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    let mut all_strings: HashSet<String> = rs_files
+    let mut all_strings: HashSet<String> = web_files
         .into_iter()
         .map(|path| collect_strings_from_file(&path, &re))
         .flat_map(|result| result.into_iter().flatten())
@@ -39,6 +81,14 @@ fn main() -> Result<(), io::Error> {
                 .iter()
                 .any(|class_or_id| class_or_id == s)
     });
+
+    let mut frontary_strings: HashSet<String> = frontary_file_paths
+        .into_iter()
+        .map(|path| extract_frontary_keys_from_file(&path, &re))
+        .flat_map(|result| result.into_iter().flatten())
+        .collect();
+
+    frontary_strings.extend(FIXED_KEY_VARIABLE.iter().map(ToString::to_string));
 
     Ok(())
 }
@@ -71,7 +121,7 @@ fn collect_files_with_extension(
     files: &mut Vec<PathBuf>,
     extension: &str,
 ) -> Result<(), io::Error> {
-    // Define paths to exclude
+    //Define paths to exclude
     let exclude_paths: HashSet<PathBuf> = vec![
         PathBuf::from("src/triage/policy/data.rs"),
         PathBuf::from("src/detection/mitre.rs"),
@@ -194,4 +244,41 @@ fn extract_css_classes_and_ids(css_file_paths: &[PathBuf]) -> Result<HashSet<Str
         .collect::<HashSet<String>>();
 
     Ok(classes_and_ids)
+}
+
+fn extract_frontary_keys_from_file(path: &Path, re: &Regex) -> Result<HashSet<String>, io::Error> {
+    let content = fs::read_to_string(path)?;
+
+    let keys: HashSet<_> = re
+        .captures_iter(&content)
+        .filter_map(|cap| cap.get(1))
+        .filter_map(|m| {
+            let matched_string = m.as_str();
+            let start = m.start() - 1;
+
+            let preceding_lines: Vec<&str> = content[..start]
+                .lines()
+                .rev()
+                .take(4)
+                .map(str::trim)
+                .collect();
+
+            preceding_lines
+                .iter()
+                .enumerate()
+                .any(|(i, line)| {
+                    (i == 0 && line.contains("ViewString::Key"))
+                        || (line.contains("text!")
+                            && (i == 0
+                                || (i > 0
+                                    && preceding_lines
+                                        .iter()
+                                        .find(|&&l| !l.is_empty())
+                                        .is_some_and(|prev| prev.contains("ctx.props()")))))
+                })
+                .then(|| matched_string.to_string())
+        })
+        .collect();
+
+    Ok(keys)
 }
