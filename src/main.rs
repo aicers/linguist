@@ -1,9 +1,13 @@
+mod repo;
 use std::collections::HashSet;
+use std::env;
 use std::fs;
 use std::io::{self, Error, ErrorKind};
 use std::path::{Path, PathBuf};
+use std::process;
 
 use regex::Regex;
+use repo::{setup_ssh_agent, RepoManager};
 use serde_json::Value;
 
 const FIXED_EXCLUDED_STRINGS: &[&str] = &[
@@ -55,14 +59,61 @@ const FIXED_KEY_VARIABLE: &[&str] = &[
     ];
 
 fn main() -> Result<(), io::Error> {
-    let en_path = "../aice-web/langs/en-US.json";
-    let ko_path = "../aice-web/langs/ko-KR.json";
-    let _en_key_list = extract_keys_from_json(en_path)?;
-    let _ko_key_list = extract_keys_from_json(ko_path)?;
-    let web_files = get_files_with_extension("../aice-web/src", "rs")?;
-    let css_files = get_files_with_extension("../aice-web/static", "css")?;
-    let frontary_file_paths = get_files_with_extension("../frontary", "rs")?;
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 2 {
+        eprintln!("Usage: {} <path-to-ssh-key>", args[0]);
+        process::exit(1);
+    }
+
+    let ssh_key_path = PathBuf::from(&args[1]);
+
+    if !ssh_key_path.exists() {
+        eprintln!("Error: SSH key not found at {ssh_key_path:?}");
+        process::exit(1);
+    }
+
+    let repo_manager = RepoManager::new().map_err(|e| {
+        eprintln!("Error creating temp directory: {e}");
+        e
+    })?;
+
+    let frontary_url = "https://github.com/aicers/frontary.git";
+    let ui_url = "git@github.com:aicers/aice-web.git";
+
+    if let Err(e) = setup_ssh_agent(&ssh_key_path) {
+        eprintln!("❌ Failed to set up SSH agent: {e}");
+        return Err(io::Error::new(ErrorKind::Other, "SSH setup failed"));
+    }
+
+    println!("🛠️ Cloning repository: {frontary_url}...");
+    if let Err(e) = repo_manager.clone_repo(frontary_url, "frontary") {
+        eprintln!("Failed to clone frontary: {e}");
+        return Err(io::Error::new(
+            ErrorKind::Other,
+            format!("❌ Failed to clone frontary: {e}"),
+        ));
+    }
+    println!("🛠️ Cloning repository: {ui_url}...");
+    if let Err(e) = repo_manager.clone_repo(ui_url, "aice-web") {
+        eprintln!("Failed to clone aice-web: {e}");
+        return Err(io::Error::new(
+            ErrorKind::Other,
+            format!("❌ Failed to clone aice-web: {e}"),
+        ));
+    }
+
+    let temp_path = repo_manager.temp_dir.path();
+    // Update file paths dynamically using `temp_path`
+    let en_path = temp_path.join("aice-web/langs/en-US.json");
+    let ko_path = temp_path.join("aice-web/langs/ko-KR.json");
+    let web_files = get_files_with_extension(temp_path.join("aice-web/src"), "rs")?;
+    let css_files = get_files_with_extension(temp_path.join("aice-web/static"), "css")?;
+    let frontary_file_paths = get_files_with_extension(temp_path.join("frontary"), "rs")?;
     let css_classes_and_ids = extract_css_classes_and_ids(&css_files)?;
+
+    let _en_key_list = extract_keys_from_json(&en_path)?;
+    let _ko_key_list = extract_keys_from_json(&ko_path)?;
 
     let re = Regex::new(r#""([^"\\]*(\\.[^"\\]*)*)""#)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -93,8 +144,8 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn extract_keys_from_json(path: &str) -> Result<HashSet<String>, io::Error> {
-    let content = fs::read_to_string(path)
+fn extract_keys_from_json<P: AsRef<Path>>(path: P) -> Result<HashSet<String>, io::Error> {
+    let content = fs::read_to_string(path.as_ref())
         .map_err(|e| Error::new(ErrorKind::InvalidData, format!("File error: {e}")))?;
 
     let json: Value = serde_json::from_str(&content)
@@ -110,9 +161,12 @@ fn extract_keys_from_json(path: &str) -> Result<HashSet<String>, io::Error> {
     }
 }
 
-fn get_files_with_extension(dir: &str, extension: &str) -> Result<Vec<PathBuf>, io::Error> {
+fn get_files_with_extension<P: AsRef<Path>>(
+    dir: P,
+    extension: &str,
+) -> Result<Vec<PathBuf>, io::Error> {
     let mut files = Vec::new();
-    collect_files_with_extension(Path::new(dir), &mut files, extension)?;
+    collect_files_with_extension(dir.as_ref(), &mut files, extension)?;
     Ok(files)
 }
 
