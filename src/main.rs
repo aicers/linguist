@@ -1,9 +1,11 @@
+mod repo;
 use std::collections::HashSet;
 use std::fs;
 use std::io::{self, Error, ErrorKind};
 use std::path::{Path, PathBuf};
 
 use regex::Regex;
+use repo::RepoManager;
 use serde_json::Value;
 
 const FIXED_EXCLUDED_STRINGS: &[&str] = &[
@@ -55,14 +57,41 @@ const FIXED_KEY_VARIABLE: &[&str] = &[
     ];
 
 fn main() -> Result<(), io::Error> {
-    let en_path = "../aice-web/langs/en-US.json";
-    let ko_path = "../aice-web/langs/ko-KR.json";
-    let _en_key_list = extract_keys_from_json(en_path)?;
-    let _ko_key_list = extract_keys_from_json(ko_path)?;
-    let web_files = get_files_with_extension("../aice-web/src", "rs")?;
-    let css_files = get_files_with_extension("../aice-web/static", "css")?;
-    let frontary_file_paths = get_files_with_extension("../frontary", "rs")?;
+    //cloning the repo at runtime
+    let repo_manager = match RepoManager::new() {
+        Ok(manager) => manager,
+        Err(e) => {
+            eprintln!("Error creating temp directory: {e}");
+            return Err(e);
+        }
+    };
+
+    let frontary_url = "https://github.com/aicers/frontary.git";
+    let ui_url = "git@github.com:aicers/aice-web.git";
+
+    repo_manager
+        .clone_repo(frontary_url, "frontary")
+        .expect("Failed to clone frontary");
+    repo_manager
+        .clone_repo(ui_url, "aice-web")
+        .expect("Failed to clone repo aice-web");
+
+    let temp_path = repo_manager.temp_dir.path();
+    println!("Repositories cloned to {temp_path:?}");
+
+    let temp_path = repo_manager.temp_dir.path();
+    println!("Repositories cloned to {temp_path:?}");
+
+    // ✅ Update file paths dynamically using `temp_path`
+    let en_path = temp_path.join("aice-web/langs/en-US.json");
+    let ko_path = temp_path.join("aice-web/langs/ko-KR.json");
+    let web_files = get_files_with_extension(temp_path.join("aice-web/src"), "rs")?;
+    let css_files = get_files_with_extension(temp_path.join("aice-web/static"), "css")?;
+    let frontary_file_paths = get_files_with_extension(temp_path.join("frontary"), "rs")?;
     let css_classes_and_ids = extract_css_classes_and_ids(&css_files)?;
+
+    let _en_key_list = extract_keys_from_json(&en_path)?;
+    let _ko_key_list = extract_keys_from_json(&ko_path)?;
 
     let re = Regex::new(r#""([^"\\]*(\\.[^"\\]*)*)""#)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -93,8 +122,8 @@ fn main() -> Result<(), io::Error> {
     Ok(())
 }
 
-fn extract_keys_from_json(path: &str) -> Result<HashSet<String>, io::Error> {
-    let content = fs::read_to_string(path)
+fn extract_keys_from_json<P: AsRef<Path>>(path: P) -> Result<HashSet<String>, io::Error> {
+    let content = fs::read_to_string(path.as_ref())
         .map_err(|e| Error::new(ErrorKind::InvalidData, format!("File error: {e}")))?;
 
     let json: Value = serde_json::from_str(&content)
@@ -110,9 +139,12 @@ fn extract_keys_from_json(path: &str) -> Result<HashSet<String>, io::Error> {
     }
 }
 
-fn get_files_with_extension(dir: &str, extension: &str) -> Result<Vec<PathBuf>, io::Error> {
+fn get_files_with_extension<P: AsRef<Path>>(
+    dir: P,
+    extension: &str,
+) -> Result<Vec<PathBuf>, io::Error> {
     let mut files = Vec::new();
-    collect_files_with_extension(Path::new(dir), &mut files, extension)?;
+    collect_files_with_extension(dir.as_ref(), &mut files, extension)?;
     Ok(files)
 }
 
