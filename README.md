@@ -27,8 +27,8 @@ cargo run ~/.ssh/my_custom_rsa_key
 
 Before running `linguist`, make sure:
 
-* You have GitHub SSH authentication set up.
-* Your SSH key is added to GitHub.
+- You have GitHub SSH authentication set up.
+- Your SSH key is added to GitHub.
 
   Run the following command to test SSH authentication
 
@@ -41,7 +41,7 @@ Before running `linguist`, make sure:
 
   **Then SSH is working correctly.**
 
-* Your SSH key is added to `ssh-agent`:
+- Your SSH key is added to `ssh-agent`:
 
   ```sh
   eval "$(ssh-agent -s)"
