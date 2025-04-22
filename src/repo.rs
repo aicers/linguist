@@ -6,18 +6,22 @@ use std::process::{Command, Stdio};
 use git2::{build::RepoBuilder, Cred, FetchOptions, RemoteCallbacks};
 use tempfile::TempDir;
 
-pub struct RepoManager {
-    pub temp_dir: TempDir,
+pub(crate) struct RepoManager {
+    pub(crate) temp_dir: TempDir,
 }
 
 impl RepoManager {
-    pub fn new() -> Result<Self, io::Error> {
+    pub(crate) fn new() -> Result<Self, io::Error> {
         TempDir::new()
             .map(|temp_dir| Self { temp_dir })
             .map_err(|_| Error::new(ErrorKind::Other, "Failed to create temp dir"))
     }
 
-    pub fn clone_repo(&self, repo_url: &str, dest_name: &str) -> Result<PathBuf, git2::Error> {
+    pub(crate) fn clone_repo(
+        &self,
+        repo_url: &str,
+        dest_name: &str,
+    ) -> Result<PathBuf, git2::Error> {
         let dest_path = self.temp_dir.path().join(dest_name);
 
         let mut callbacks = RemoteCallbacks::new();
@@ -53,7 +57,7 @@ impl RepoManager {
     }
 }
 
-pub fn setup_ssh_agent(ssh_key_path: &Path) -> Result<(), git2::Error> {
+pub(crate) fn setup_ssh_agent(ssh_key_path: &Path) -> Result<(), git2::Error> {
     if env::var("SSH_AUTH_SOCK").is_err() {
         let output = Command::new("ssh-agent")
             .stdout(Stdio::piped())
