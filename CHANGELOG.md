@@ -19,3 +19,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   repository.
 - Cloned frontary repository and the UI repository at runtime and stored them in
   a temporary directory.
+- Retained valid serde keys.
+- Filtered strings in `Request::post` headers.
+- Excluded fixed non-key strings and single-character alphabetic strings.
+- Excluded strings in Frontary Model components and chart-related ID strings.

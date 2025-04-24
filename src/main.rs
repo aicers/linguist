@@ -11,52 +11,118 @@ use repo::{setup_ssh_agent, RepoManager};
 use serde_json::Value;
 
 const FIXED_EXCLUDED_STRINGS: &[&str] = &[
+    "&nbsp;",
+    "\\t",
+    "Content-Type",
+    "DCE/RPC Blocklist",
+    "DNS Blocklist",
+    "FTP Blocklist",
+    "FTP Brute Force",
+    "FTP Plain Text",
+    "HTTP Blocklist",
+    "Kerberos Blocklist",
+    "LDAP Blocklist",
+    "LDAP Brute Force",
+    "LDAP Plain Text",
+    "Locky Ransomware",
+    "MQTT Blocklist",
+    "Multi-host Port Scan",
+    "NFS Blocklist",
+    "NTLM Blocklist",
+    "Port Scan",
+    "RDP Blocklist",
+    "SMTP Blocklist",
+    "SMB Blocklist",
+    "SSH Blocklist",
+    "TLS Blocklist",
+    "Y-m-d H:i",
+    "account",
+    "allowlist",
+    "application/json",
+    "blocklist",
+    "customer",
     "en-US",
     "ko-KR",
+    "node",
+    "sampling policy",
     "statisticsChart-{}-{}-{}-{}-{}-{}",
-    "Y-m-d H:i",
+    "text",
+    "triage policy",
+    "trusted domains",
 ];
 
-const FIXED_KEY_VARIABLE: &[&str] = &[
-    "Invalid GraphQL response",
-    "Invalid GraphQL query",
-    "No success HTTPS status code",
-    "Unknown error",
-    "GraphQL parse error",
-    "Unauthorized",
-    "The input already exists.",
-    "Invalid IP address",
-    "Invalid input (valid examples: 10.84.1.7, 10.1.1.1 ~ 10.1.1.20, 192.168.10.0/24)",
-    "Invalid input (valid examples: 10.1.1.1 ~ 10.1.1.20)",
-    "The maximum number of input was reached.",
-    "Multiple inputs possible (valid examples: 10.84.1.7, 10.1.1.1 ~ 10.1.1.20, 192.168.10.0/24)",
-    "Multiple IP addresses possible",
+const FIXED_FRONTARY_KEY: &[&str] = &[
     "(Input Example: 192.168.1.100 ~ 192.168.1.200)",
     "(Input Example: 192.168.10.0/24)",
-    "Type",
-    "Comparison",
-    "Add another condition",
     "Add",
-    "Required",
-    "Wrong input",
+    "Add a network",
+    "Add another condition",
+    "Comparison",
     "If you want to change your password, input a new one.",
-    "This field is required.",
+    "Invalid GraphQL query",
+    "Invalid GraphQL response",
+    "Invalid IP address",
     "Invalid input",
-    "Passwords must match.",
-    "Your password must not constain any spaces.",
-    "Your password must not contain any control characters.",
+    "Invalid input (valid examples: 10.1.1.1 ~ 10.1.1.20)",
+    "Invalid input (valid examples: 10.84.1.7, 10.1.1.1 ~ 10.1.1.20, 192.168.10.0/24)",
+    "Multiple IP addresses possible",
+    "Multiple inputs possible (valid examples: 10.84.1.7, 10.1.1.1 ~ 10.1.1.20, 192.168.10.0/24)",
+    "No success HTTPS status code",
+    "Required",
+    "The input already exists.",
+    "The maximum number of input was reached.",
+    "This field is required.",
+    "Type",
+    "Unauthorized",
+    "Unknown error",
+    "Wrong input",
     "Your password is too short.",
     "Your password must contain at least one lowercase alphabet.",
-    "Your password must contain at least one uppercase alphabet.",
     "Your password must contain at least one number.",
     "Your password must contain at least one special character.",
+    "Your password must contain at least one uppercase alphabet.",
+    "Your password must not constain any spaces.",
+    "Your password must not contain any control characters.",
     "Your password must not contain consecutive repeating characters.",
     "Your password must not contain more than 3 adjacent keyboard characters.",
-    "no spaces, more than 8 characters, at least one number/uppercase/lowercase/special characters, no consecutive repetition, and less than 4 adjacent keyboard characters",
     "no spaces, more than 7 characters, at least one number/uppercase/lowercase/special characters",
-    "Add a network",
-    "Unauthorized"
-    ];
+    "no spaces, more than 8 characters, at least one number/uppercase/lowercase/special characters, no consecutive repetition, and less than 4 adjacent keyboard characters"
+];
+
+const FIXED_UI_KEY: &[&str] = &[
+    "1 hour",
+    "1 min.",
+    "10 min.",
+    "10 minutes",
+    "15 minutes",
+    "2 days",
+    "2 hours",
+    "2 weeks",
+    "3 min.",
+    "30 min.",
+    "30 minutes",
+    "30 sec.",
+    "5 min.",
+    "5 minutes",
+    "6 hours",
+    "DNS",
+    "Entire",
+    "Events",
+    "PDF",
+    "RDP",
+    "SSH",
+    "Save FTP Files",
+    "Save HTTP Files",
+    "Save Packets",
+    "Save SMTP Files",
+    "Session",
+    "Semi-supervised Learning",
+    "System Administrator",
+    "Token",
+    "URL",
+    "Unsupervised Learning",
+    "Whitelist",
+];
 
 fn main() -> Result<(), io::Error> {
     let args: Vec<String> = env::args().collect();
@@ -107,7 +173,7 @@ fn main() -> Result<(), io::Error> {
     // Update file paths dynamically using `temp_path`
     let en_path = temp_path.join("aice-web/langs/en-US.json");
     let ko_path = temp_path.join("aice-web/langs/ko-KR.json");
-    let web_files = get_files_with_extension(temp_path.join("aice-web/src"), "rs")?;
+    let ui_files = get_files_with_extension(temp_path.join("aice-web/src"), "rs")?;
     let css_files = get_files_with_extension(temp_path.join("aice-web/static"), "css")?;
     let frontary_file_paths = get_files_with_extension(temp_path.join("frontary"), "rs")?;
     let css_classes_and_ids = extract_css_classes_and_ids(&css_files)?;
@@ -118,13 +184,13 @@ fn main() -> Result<(), io::Error> {
     let re = Regex::new(r#""([^"\\]*(\\.[^"\\]*)*)""#)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
 
-    let mut all_strings: HashSet<String> = web_files
+    let mut ui_strings: HashSet<String> = ui_files
         .into_iter()
         .map(|path| collect_strings_from_file(&path, &re))
         .flat_map(|result| result.into_iter().flatten())
         .collect::<HashSet<_>>();
 
-    all_strings.retain(|s| {
+    ui_strings.retain(|s| {
         !FIXED_EXCLUDED_STRINGS
             .iter()
             .any(|&excluded| excluded == s.as_str())
@@ -133,13 +199,17 @@ fn main() -> Result<(), io::Error> {
                 .any(|class_or_id| class_or_id == s)
     });
 
+    ui_strings.extend(FIXED_UI_KEY.iter().map(ToString::to_string));
+
     let mut frontary_strings: HashSet<String> = frontary_file_paths
         .into_iter()
         .map(|path| extract_frontary_keys_from_file(&path, &re))
         .flat_map(|result| result.into_iter().flatten())
         .collect();
 
-    frontary_strings.extend(FIXED_KEY_VARIABLE.iter().map(ToString::to_string));
+    frontary_strings.extend(FIXED_FRONTARY_KEY.iter().map(ToString::to_string));
+
+    let _all_strings: HashSet<String> = ui_strings.union(&frontary_strings).cloned().collect();
 
     Ok(())
 }
@@ -192,7 +262,7 @@ fn collect_files_with_extension(
                     collect_files_with_extension(&path, files, extension)?;
                 }
             } else if path.extension().and_then(|ext| ext.to_str()) == Some(extension)
-                && !exclude_paths.contains(&path)
+                && !exclude_paths.iter().any(|p| path.ends_with(p))
             {
                 files.push(path);
             }
@@ -217,6 +287,8 @@ fn collect_strings_from_file(dir: &Path, re: &Regex) -> Result<HashSet<String>, 
                 || matched_string
                     .chars()
                     .any(|c| ('\u{AC00}'..='\u{D7A3}').contains(&c))
+                || matched_string.starts_with("report-")
+                || matched_string.len() == 1
             {
                 return None;
             }
@@ -227,7 +299,11 @@ fn collect_strings_from_file(dir: &Path, re: &Regex) -> Result<HashSet<String>, 
                 .map_or(content.len(), |pos| start + pos);
             let current_line = content[line_start..line_end].trim();
 
-            if current_line.contains("expect(") || current_line.contains("feature =") {
+            if current_line.contains("expect(")
+                || current_line.contains("feature =")
+                || current_line.contains("#[serde(rename =")
+                || current_line.contains("#[strum(serialize =")
+            {
                 return None;
             }
 
