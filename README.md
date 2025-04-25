@@ -17,7 +17,8 @@ that they remain accurate and complete.
 
 ### Cloning Repositories with SSH Authentication
 
-To run `linguist`, you must specify the **path to your SSH private key** as an argument.
+To run `linguist`, you must specify the **path to your SSH private key** as an
+argument.
 
 ```sh
 cargo run ~/.ssh/my_custom_rsa_key
@@ -36,8 +37,7 @@ Before running `linguist`, make sure:
   ssh -T git@github.com
   ```
 
-  If you see:
-  _"Hi `<your-username>`! You've successfully authenticated.."_
+  If you see: _"Hi `<your-username>`! You've successfully authenticated.."_
 
   **Then SSH is working correctly.**
 
@@ -54,9 +54,9 @@ Before running `linguist`, make sure:
 
 Copyright 2022-2025 ClumL Inc.
 
-Licensed under [Apache License, Version
-2.0](https://www.apache.org/licenses/LICENSE-2.0)
-(the "License"); you may not use this crate except in compliance with the License.
+Licensed under
+[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0) (the
+"License"); you may not use this crate except in compliance with the License.
 
 Unless required by applicable law or agreed to in writing, software distributed
 under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
