@@ -23,3 +23,4 @@ this project adheres to
 - Filtered strings in `Request::post` headers.
 - Excluded fixed non-key strings and single-character alphabetic strings.
 - Excluded strings in Frontary Model components and chart-related ID strings.
+- Compared `all_strings` against the keys in ko-KR.json and en-US.json.

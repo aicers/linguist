@@ -178,8 +178,8 @@ fn main() -> Result<(), io::Error> {
     let frontary_file_paths = get_files_with_extension(temp_path.join("frontary"), "rs")?;
     let css_classes_and_ids = extract_css_classes_and_ids(&css_files)?;
 
-    let _en_key_list = extract_keys_from_json(&en_path)?;
-    let _ko_key_list = extract_keys_from_json(&ko_path)?;
+    let en_key_list = extract_keys_from_json(&en_path)?;
+    let ko_key_list = extract_keys_from_json(&ko_path)?;
 
     let re = Regex::new(r#""([^"\\]*(\\.[^"\\]*)*)""#)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
@@ -209,7 +209,11 @@ fn main() -> Result<(), io::Error> {
 
     frontary_strings.extend(FIXED_FRONTARY_KEY.iter().map(ToString::to_string));
 
-    let _all_strings: HashSet<String> = ui_strings.union(&frontary_strings).cloned().collect();
+    let all_strings: HashSet<String> = ui_strings.union(&frontary_strings).cloned().collect();
+
+    compare_keys("all_strings", &all_strings, "ko-KR.json", &ko_key_list);
+    compare_keys("all_strings", &all_strings, "en-US.json", &en_key_list);
+    compare_keys("ko-KR.json", &ko_key_list, "en-US.json", &en_key_list);
 
     Ok(())
 }
@@ -411,4 +415,38 @@ fn extract_frontary_keys_from_file(path: &Path, re: &Regex) -> Result<HashSet<St
         .collect();
 
     Ok(keys)
+}
+
+fn print_missing(
+    from_name: &str,
+    to_name: &str,
+    from_set: &HashSet<String>,
+    to_set: &HashSet<String>,
+) {
+    let missing = from_set
+        .difference(to_set)
+        .fold(String::new(), |mut acc, key| {
+            acc.push_str("  - ");
+            acc.push_str(key);
+            acc.push('\n');
+            acc
+        });
+
+    if missing.is_empty() {
+        println!("No keys from `{from_name}` are missing in `{to_name}`.");
+    } else {
+        println!("Keys from `{from_name}` missing in `{to_name}`:\n{missing}");
+    }
+}
+
+fn compare_keys(name1: &str, set1: &HashSet<String>, name2: &str, set2: &HashSet<String>) {
+    println!("=== {name1} vs {name2} ===");
+
+    // keys in set1 not in set2
+    print_missing(name1, name2, set1, set2);
+
+    // keys in set2 not in set1
+    print_missing(name2, name1, set2, set1);
+
+    println!();
 }
