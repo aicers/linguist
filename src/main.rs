@@ -1,14 +1,27 @@
 mod repo;
 use std::collections::HashSet;
-use std::env;
 use std::fs;
 use std::io::{self, Error, ErrorKind};
 use std::path::{Path, PathBuf};
-use std::process;
 
+use clap::Parser;
 use regex::Regex;
 use repo::{setup_ssh_agent, RepoManager};
 use serde_json::Value;
+use toml::Value as TomlValue;
+
+#[derive(Parser)]
+#[command(author, version, about)]
+struct Args {
+    #[arg(long)]
+    ui_path: Option<PathBuf>,
+
+    #[arg(long)]
+    frontary_path: Option<PathBuf>,
+
+    #[arg(long, value_name = "SSH_KEY")]
+    ssh_key: PathBuf,
+}
 
 const FIXED_EXCLUDED_STRINGS: &[&str] = &[
     "&nbsp;",
@@ -124,94 +137,178 @@ const FIXED_UI_KEY: &[&str] = &[
     "Whitelist",
 ];
 
+const AICE_WEB_URL: &str = "git@github.com:aicers/aice-web.git";
+const FRONTARY_URL: &str = "https://github.com/aicers/frontary.git";
+const UI_REPO_NAME: &str = "aice-web";
+const FRONTARY_REPO_NAME: &str = "frontary";
+
 fn main() -> Result<(), io::Error> {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
+    let ui_local = args.ui_path.clone();
+    let fr_local = args.frontary_path.clone();
+    let ssh_key = args.ssh_key;
 
-    if args.len() < 2 {
-        eprintln!("Usage: {} <path-to-ssh-key>", args[0]);
-        process::exit(1);
-    }
+    initialize_ssh(&ssh_key)?;
+    log_repo_strategy(ui_local.as_ref(), fr_local.as_ref());
 
-    let ssh_key_path = PathBuf::from(&args[1]);
+    let repo_manager =
+        RepoManager::new().map_err(|e| io::Error::other(format!("Temp dir error: {e}")))?;
 
-    if !ssh_key_path.exists() {
-        eprintln!("Error: SSH key not found at {:?}", ssh_key_path.display());
-        process::exit(1);
-    }
+    let ui_repo = prepare_repo(AICE_WEB_URL, ui_local, UI_REPO_NAME, &repo_manager)?;
+    let fr_repo = prepare_repo(FRONTARY_URL, fr_local, FRONTARY_REPO_NAME, &repo_manager)?;
 
-    let repo_manager = RepoManager::new().map_err(|e| {
-        eprintln!("Error creating temp directory: {e}");
-        e
-    })?;
+    checkout_frontary(
+        args.frontary_path.as_ref(),
+        ui_repo.as_path(),
+        fr_repo.as_path(),
+    )?;
+    process_keys(&ui_repo, &fr_repo)?;
+    Ok(())
+}
 
-    let frontary_url = "https://github.com/aicers/frontary.git";
-    let ui_url = "git@github.com:aicers/aice-web.git";
-
-    if let Err(e) = setup_ssh_agent(&ssh_key_path) {
+fn initialize_ssh(ssh_key: &Path) -> Result<(), io::Error> {
+    if let Err(e) = setup_ssh_agent(ssh_key) {
         eprintln!("❌ Failed to set up SSH agent: {e}");
         return Err(io::Error::other("SSH setup failed"));
     }
+    println!("✅ SSH authentication succeeded");
+    Ok(())
+}
 
-    println!("🛠️ Cloning repository: {frontary_url}...");
-    if let Err(e) = repo_manager.clone_repo(frontary_url, "frontary") {
-        eprintln!("Failed to clone frontary: {e}");
-        return Err(io::Error::other(format!(
-            "❌ Failed to clone frontary: {e}"
-        )));
+fn log_repo_strategy(ui_path: Option<&PathBuf>, fr_path: Option<&PathBuf>) {
+    match (ui_path, fr_path) {
+        (None, None) => println!(
+            "🔄 No local paths: will clone both '{UI_REPO_NAME}' and '{FRONTARY_REPO_NAME}'."
+        ),
+        (Some(path), None) => println!(
+            "🔄 Using local {UI_REPO_NAME} at {}; will clone {FRONTARY_REPO_NAME}.",
+            path.display()
+        ),
+        (None, Some(path)) => println!(
+            "🔄 Will clone {UI_REPO_NAME}; using local {FRONTARY_REPO_NAME} at {}.",
+            path.display()
+        ),
+        (Some(ui), Some(fr)) => println!(
+            "🔄 Using local {UI_REPO_NAME} at {} and {FRONTARY_REPO_NAME} at {}.",
+            ui.display(),
+            fr.display()
+        ),
     }
-    println!("🛠️ Cloning repository: {ui_url}...");
-    if let Err(e) = repo_manager.clone_repo(ui_url, "aice-web") {
-        eprintln!("Failed to clone aice-web: {e}");
-        return Err(io::Error::other(format!(
-            "❌ Failed to clone aice-web: {e}"
-        )));
+}
+
+fn checkout_frontary(
+    fr_local: Option<&PathBuf>,
+    ui_repo: &Path,
+    fr_repo: &Path,
+) -> Result<(), io::Error> {
+    if fr_local.is_none() {
+        let tag = read_frontary_req(ui_repo)?;
+        println!("🔀 Checking out frontary at commit: {tag}");
+        RepoManager::checkout(fr_repo, &tag)
+            .map_err(|e| io::Error::other(format!("Checkout failed: {e}")))?;
+    }
+    Ok(())
+}
+
+fn prepare_repo(
+    repo_url: &str,
+    override_path: Option<PathBuf>,
+    name: &str,
+    manager: &RepoManager,
+) -> Result<PathBuf, io::Error> {
+    if let Some(path) = override_path {
+        if path.exists() {
+            return Ok(path);
+        }
+        return Err(io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("Local {name} repo not found at {}", path.display()),
+        ));
     }
 
-    let temp_path = repo_manager.temp_dir.path();
-    // Update file paths dynamically using `temp_path`
-    let en_path = temp_path.join("aice-web/langs/en-US.json");
-    let ko_path = temp_path.join("aice-web/langs/ko-KR.json");
-    let ui_files = get_files_with_extension(temp_path.join("aice-web/src"), "rs")?;
-    let css_files = get_files_with_extension(temp_path.join("aice-web/static"), "css")?;
-    let frontary_file_paths = get_files_with_extension(temp_path.join("frontary"), "rs")?;
-    let css_classes_and_ids = extract_css_classes_and_ids(&css_files)?;
+    manager
+        .clone_repo(repo_url, name)
+        .map_err(|e| io::Error::other(format!("Failed to clone {name}: {e}")))?;
+    Ok(manager.temp_dir.path().join(name))
+}
 
-    let en_key_list = extract_keys_from_json(&en_path)?;
-    let ko_key_list = extract_keys_from_json(&ko_path)?;
-
+fn process_keys(ui_repo: &Path, fr_repo: &Path) -> Result<(), io::Error> {
+    // collect paths & files
+    let en_path = ui_repo.join("langs/en-US.json");
+    let ko_path = ui_repo.join("langs/ko-KR.json");
+    let ui_files = get_files_with_extension(ui_repo.join("src"), "rs")?;
+    let css_files = get_files_with_extension(ui_repo.join("static"), "css")?;
+    let frontary_files = get_files_with_extension(fr_repo.join("src"), "rs")?;
+    let css_ids = extract_css_classes_and_ids(&css_files)?;
+    // JSON keys
+    let en_keys = extract_keys_from_json(&en_path)?;
+    let ko_keys = extract_keys_from_json(&ko_path)?;
+    // regex for string literals
     let re = Regex::new(r#""([^"\\]*(\\.[^"\\]*)*)""#)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        .map_err(|e| io::Error::new(ErrorKind::InvalidData, e))?;
 
-    let mut ui_strings: HashSet<String> = ui_files
+    let mut ui_strings = ui_files
         .into_iter()
-        .map(|path| collect_strings_from_file(&path, &re))
-        .flat_map(|result| result.into_iter().flatten())
+        .map(|p| collect_strings_from_file(&p, &re))
+        .flat_map(Result::into_iter)
+        .flatten()
         .collect::<HashSet<_>>();
-
     ui_strings.retain(|s| {
-        !FIXED_EXCLUDED_STRINGS.contains(&s.as_str())
-            && !css_classes_and_ids
-                .iter()
-                .any(|class_or_id| class_or_id == s)
+        !FIXED_EXCLUDED_STRINGS.iter().any(|&e| e == s) && !css_ids.iter().any(|id| id == s)
     });
-
     ui_strings.extend(FIXED_UI_KEY.iter().map(ToString::to_string));
 
-    let mut frontary_strings: HashSet<String> = frontary_file_paths
+    let mut frontary_strings = frontary_files
         .into_iter()
-        .map(|path| extract_frontary_keys_from_file(&path, &re))
-        .flat_map(|result| result.into_iter().flatten())
-        .collect();
-
+        .map(|p| extract_frontary_keys_from_file(&p, &re))
+        .flat_map(Result::into_iter)
+        .flatten()
+        .collect::<HashSet<_>>();
     frontary_strings.extend(FIXED_FRONTARY_KEY.iter().map(ToString::to_string));
 
-    let all_strings: HashSet<String> = ui_strings.union(&frontary_strings).cloned().collect();
-
-    compare_keys("all_strings", &all_strings, "ko-KR.json", &ko_key_list);
-    compare_keys("all_strings", &all_strings, "en-US.json", &en_key_list);
-    compare_keys("ko-KR.json", &ko_key_list, "en-US.json", &en_key_list);
-
+    let all_strings = ui_strings.union(&frontary_strings).cloned().collect();
+    compare_keys("all_strings", &all_strings, "ko-KR.json", &ko_keys);
+    compare_keys("all_strings", &all_strings, "en-US.json", &en_keys);
+    compare_keys("ko-KR.json", &ko_keys, "en-US.json", &en_keys);
     Ok(())
+}
+
+fn read_frontary_req(ui_root: &Path) -> Result<String, io::Error> {
+    let cargo_toml = ui_root.join("Cargo.toml");
+    let toml_str = fs::read_to_string(&cargo_toml).map_err(|e| {
+        io::Error::new(
+            e.kind(),
+            format!("Failed to read {}: {e}", cargo_toml.display()),
+        )
+    })?;
+
+    let cargo: TomlValue = toml::from_str(&toml_str)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, format!("Invalid TOML: {e}")))?;
+
+    if let Some(frontary) = cargo
+        .get("dependencies")
+        .and_then(|deps| deps.get("frontary"))
+    {
+        if let Some(version) = frontary.as_str() {
+            return Ok(version.to_string());
+        }
+        if let Some(table) = frontary.as_table() {
+            if let Some(tag) = table.get("tag").and_then(TomlValue::as_str) {
+                return Ok(tag.to_string());
+            }
+            if let Some(rev) = table.get("rev").and_then(TomlValue::as_str) {
+                return Ok(rev.to_string());
+            }
+            if let Some(ver) = table.get("version").and_then(TomlValue::as_str) {
+                return Ok(ver.to_string());
+            }
+        }
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::NotFound,
+        "`frontary` dependency not found in Cargo.toml",
+    ))
 }
 
 fn extract_keys_from_json<P: AsRef<Path>>(path: P) -> Result<HashSet<String>, io::Error> {

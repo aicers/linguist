@@ -13,17 +13,7 @@ compare and validate key usage across multiple language versions.
 By identifying inconsistencies between these translations, `linguist` ensures
 that they remain accurate and complete.
 
-## Usage
-
-### Cloning Repositories with SSH Authentication
-
-To run `linguist`, you must specify the **path to your SSH private key** as an argument.
-
-```sh
-cargo run ~/.ssh/my_custom_rsa_key
-```
-
-### Prerequisites
+## Prerequisites
 
 Before running `linguist`, make sure:
 
@@ -49,9 +39,40 @@ Before running `linguist`, make sure:
 
   If authentication issues persist, rerun this command again.
 
+## Usage
+
+```sh
+linguist --ssh-key <SSH_KEY_PATH> [--ui-path <UI_PATH>] [--frontary-path \ <FRONTARY_PATH>]
+```
+
+### Arguments
+
+<!-- markdownlint-disable -->
+| Argument                          | Description                                                   | Required |
+|-----------------------------------|---------------------------------------------------------------|----------|
+| `--ssh-key <SSH_KEY_PATH>`        | Path to your SSH private key file used for GitHub operations  | Yes      |
+| `--ui-path <UI_PATH>`             | Local path of the `aice-web` repo instead of cloning remotely | No       |
+| `--frontary-path <FRONTARY_PATH>` | Local path of the `frontary` repo instead of cloning remotely | No       |
+<!-- markdownlint-enable -->
+
+#### Notes on Arguments
+
+- The `--ssh-key <SSH_KEY_PATH>` argument:
+  - Required for GitHub authentication.
+  - Must point to your SSH private key (e.g., `~/.ssh/id_rsa`).
+  - Ensure the key is loaded into your SSH agent before running.
+
+- The `--ui-path <UI_PATH>` argument:
+  - Optional; if provided, uses this local directory as the aice-web repository.
+  - If omitted, linguist will clone aice-web from the default remote URL.
+
+- The `--frontary-path <FRONTARY_PATH>` argument:
+  - Optional; if provided, uses this local directory as the frontary repository.
+  - If omitted, linguist will clone frontary from the default remote URL.
+
 ## License
 
-Copyright 2022-2025 ClumL Inc.
+Copyright 2025 ClumL Inc.
 
 Licensed under [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 (the "License"); you may not use this crate except in compliance with the License.

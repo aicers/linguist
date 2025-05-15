@@ -22,3 +22,5 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Excluded fixed non-key strings and single-character alphabetic strings.
 - Excluded strings in Frontary Model components and chart-related ID strings.
 - Compared `all_strings` against the keys in ko-KR.json and en-US.json.
+- Added optional CLI flags `--ui-path <PATH>` and `--frontary-path <PATH>` to
+  allow using local copies of the UI and Frontary repositories.

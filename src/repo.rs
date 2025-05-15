@@ -3,7 +3,7 @@ use std::io::{self, Error};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
-use git2::{build::RepoBuilder, Cred, FetchOptions, RemoteCallbacks};
+use git2::{build::RepoBuilder, BranchType, Cred, FetchOptions, RemoteCallbacks, Repository};
 use tempfile::TempDir;
 
 pub(crate) struct RepoManager {
@@ -54,6 +54,26 @@ impl RepoManager {
             }
             Err(_) => Err(git2::Error::from_str("❌ Failed to clone repository.")),
         }
+    }
+
+    pub(crate) fn checkout(repo_path: &Path, reference: &str) -> Result<(), git2::Error> {
+        let repo = Repository::open(repo_path)?;
+        let obj = repo.revparse_single(reference)?;
+
+        repo.checkout_tree(&obj, None)?;
+
+        if repo.find_branch(reference, BranchType::Local).is_ok() {
+            repo.set_head(&format!("refs/heads/{reference}"))?;
+        } else if repo
+            .find_reference(&format!("refs/tags/{reference}"))
+            .is_ok()
+        {
+            repo.set_head(&format!("refs/tags/{reference}"))?;
+        } else {
+            repo.set_head_detached(obj.id())?;
+        }
+
+        Ok(())
     }
 }
 
