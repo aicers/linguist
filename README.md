@@ -50,6 +50,41 @@ Before running `linguist`, make sure:
 
   If authentication issues persist, rerun this command again.
 
+### Options
+
+- `--ui-path <PATH>`
+  Use a local clone of the `aice-web` repo instead of cloning remote.
+- `--frontary-path <PATH>`
+  Use a local clone of the `frontary` repo instead of cloning remote.
+
+### Scenarios
+
+1. **No paths provided** (default cloning):
+
+   ```sh
+   cargo run -- ~/.ssh/my_key
+   ```
+
+2. **Only UI path provided**:
+
+   ```sh
+   cargo run -- --ui-path ../aice-web ~/.ssh/my_key
+   ```
+
+3. **Only Frontary path provided**:
+
+   ```sh
+   cargo run -- --frontary-path ../frontary ~/.ssh/my_key
+   ```
+
+4. **Both paths provided**:
+
+   ```sh
+   cargo run -- --ui-path ../aice-web \
+              --frontary-path ../frontary \
+              ~/.ssh/my_key
+   ```
+
 ## License
 
 Copyright 2022-2025 ClumL Inc.
