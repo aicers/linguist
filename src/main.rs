@@ -135,7 +135,7 @@ fn main() -> Result<(), io::Error> {
     let ssh_key_path = PathBuf::from(&args[1]);
 
     if !ssh_key_path.exists() {
-        eprintln!("Error: SSH key not found at {ssh_key_path:?}");
+        eprintln!("Error: SSH key not found at {:?}", ssh_key_path.display());
         process::exit(1);
     }
 
@@ -149,24 +149,22 @@ fn main() -> Result<(), io::Error> {
 
     if let Err(e) = setup_ssh_agent(&ssh_key_path) {
         eprintln!("❌ Failed to set up SSH agent: {e}");
-        return Err(io::Error::new(ErrorKind::Other, "SSH setup failed"));
+        return Err(io::Error::other("SSH setup failed"));
     }
 
     println!("🛠️ Cloning repository: {frontary_url}...");
     if let Err(e) = repo_manager.clone_repo(frontary_url, "frontary") {
         eprintln!("Failed to clone frontary: {e}");
-        return Err(io::Error::new(
-            ErrorKind::Other,
-            format!("❌ Failed to clone frontary: {e}"),
-        ));
+        return Err(io::Error::other(format!(
+            "❌ Failed to clone frontary: {e}"
+        )));
     }
     println!("🛠️ Cloning repository: {ui_url}...");
     if let Err(e) = repo_manager.clone_repo(ui_url, "aice-web") {
         eprintln!("Failed to clone aice-web: {e}");
-        return Err(io::Error::new(
-            ErrorKind::Other,
-            format!("❌ Failed to clone aice-web: {e}"),
-        ));
+        return Err(io::Error::other(format!(
+            "❌ Failed to clone aice-web: {e}"
+        )));
     }
 
     let temp_path = repo_manager.temp_dir.path();
@@ -191,9 +189,7 @@ fn main() -> Result<(), io::Error> {
         .collect::<HashSet<_>>();
 
     ui_strings.retain(|s| {
-        !FIXED_EXCLUDED_STRINGS
-            .iter()
-            .any(|&excluded| excluded == s.as_str())
+        !FIXED_EXCLUDED_STRINGS.contains(&s.as_str())
             && !css_classes_and_ids
                 .iter()
                 .any(|class_or_id| class_or_id == s)

@@ -1,5 +1,5 @@
 use std::env;
-use std::io::{self, Error, ErrorKind};
+use std::io::{self, Error};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
@@ -14,7 +14,7 @@ impl RepoManager {
     pub(crate) fn new() -> Result<Self, io::Error> {
         TempDir::new()
             .map(|temp_dir| Self { temp_dir })
-            .map_err(|_| Error::new(ErrorKind::Other, "Failed to create temp dir"))
+            .map_err(|_| Error::other("Failed to create temp dir"))
     }
 
     pub(crate) fn clone_repo(
