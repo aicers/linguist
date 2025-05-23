@@ -24,3 +24,5 @@ this project adheres to
 - Excluded fixed non-key strings and single-character alphabetic strings.
 - Excluded strings in Frontary Model components and chart-related ID strings.
 - Compared `all_strings` against the keys in ko-KR.json and en-US.json.
+- Added optional CLI flags `--ui-path <PATH>` and `--frontary-path <PATH>` to
+  allow using local copies of the UI and Frontary repositories.
