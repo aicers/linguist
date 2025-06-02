@@ -18,26 +18,21 @@ that they remain accurate and complete.
 Before running `linguist`, make sure:
 
 - You have GitHub SSH authentication set up.
-- Your SSH key is added to GitHub.
+- **If your SSH private key _is_ passphrase-protected**, You can set the
+  passphrase via an environment variable and let `linguist` use it automatically:
 
-  Run the following command to test SSH authentication
+  ```sh
+  export SSH_PASSPHRASE="your_passphrase_here"
+  ```
+
+- **Always** verify basic SSH connectivity once (only needed if you’re troubleshooting):
 
   ```sh
   ssh -T git@github.com
   ```
 
-  If you see: _"Hi `<your-username>`! You've successfully authenticated.."_
-
-  **Then SSH is working correctly.**
-
-- Your SSH key is added to `ssh-agent`:
-
-  ```sh
-  eval "$(ssh-agent -s)"
-  ssh-add ~/.ssh/my_custom_rsa_key
-  ```
-
-  If authentication issues persist, rerun this command again.
+  You should see:
+  > Hi `<your-username>`! You've successfully authenticated...
 
 ## Usage
 

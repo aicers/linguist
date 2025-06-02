@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use regex::Regex;
-use repo::{setup_ssh_agent, RepoManager};
+use repo::{validate_ssh_key_path, RepoManager};
 use serde_json::Value;
 use toml::Value as TomlValue;
 
@@ -144,34 +144,30 @@ const FRONTARY_REPO_NAME: &str = "frontary";
 
 fn main() -> Result<(), io::Error> {
     let args = Args::parse();
-    let ui_local = args.ui_path.clone();
-    let fr_local = args.frontary_path.clone();
-    let ssh_key = args.ssh_key;
 
-    initialize_ssh(&ssh_key)?;
-    log_repo_strategy(ui_local.as_ref(), fr_local.as_ref());
+    validate_ssh_key_path(&args.ssh_key).map_err(|e| io::Error::other(e.message().to_owned()))?;
 
-    let repo_manager =
-        RepoManager::new().map_err(|e| io::Error::other(format!("Temp dir error: {e}")))?;
+    let repo_manager = RepoManager::new_with_key(args.ssh_key.clone())
+        .map_err(|e| io::Error::other(format!("Failed to create RepoManager: {e}")))?;
 
-    let ui_repo = prepare_repo(AICE_WEB_URL, ui_local, UI_REPO_NAME, &repo_manager)?;
-    let fr_repo = prepare_repo(FRONTARY_URL, fr_local, FRONTARY_REPO_NAME, &repo_manager)?;
+    log_repo_strategy(args.ui_path.as_ref(), args.frontary_path.as_ref());
 
-    checkout_frontary(
-        args.frontary_path.as_ref(),
-        ui_repo.as_path(),
-        fr_repo.as_path(),
+    let ui_repo = prepare_repo(
+        AICE_WEB_URL,
+        args.ui_path.clone(),
+        UI_REPO_NAME,
+        &repo_manager,
     )?;
-    process_keys(&ui_repo, &fr_repo)?;
-    Ok(())
-}
 
-fn initialize_ssh(ssh_key: &Path) -> Result<(), io::Error> {
-    if let Err(e) = setup_ssh_agent(ssh_key) {
-        eprintln!("❌ Failed to set up SSH agent: {e}");
-        return Err(io::Error::other("SSH setup failed"));
-    }
-    println!("✅ SSH authentication succeeded");
+    let fr_repo = prepare_repo(
+        FRONTARY_URL,
+        args.frontary_path.clone(),
+        FRONTARY_REPO_NAME,
+        &repo_manager,
+    )?;
+
+    checkout_frontary(args.frontary_path.as_ref(), &ui_repo, &fr_repo)?;
+    process_keys(&ui_repo, &fr_repo)?;
     Ok(())
 }
 
@@ -226,10 +222,12 @@ fn prepare_repo(
         ));
     }
 
-    manager
+    println!("🛠️ Cloning repository: {repo_url}...");
+
+    let cloned = manager
         .clone_repo(repo_url, name)
         .map_err(|e| io::Error::other(format!("Failed to clone {name}: {e}")))?;
-    Ok(manager.temp_dir.path().join(name))
+    Ok(cloned)
 }
 
 fn process_keys(ui_repo: &Path, fr_repo: &Path) -> Result<(), io::Error> {

@@ -1,19 +1,24 @@
 use std::env;
 use std::io::{self, Error};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use git2::{build::RepoBuilder, BranchType, Cred, FetchOptions, RemoteCallbacks, Repository};
 use tempfile::TempDir;
 
+const ENV_SSH_PASSPHRASE: &str = "SSH_PASSPHRASE";
+
 pub(crate) struct RepoManager {
     pub(crate) temp_dir: TempDir,
+    pub(crate) ssh_key_path: PathBuf,
 }
 
 impl RepoManager {
-    pub(crate) fn new() -> Result<Self, io::Error> {
+    pub(crate) fn new_with_key(ssh_key_path: PathBuf) -> Result<Self, io::Error> {
         TempDir::new()
-            .map(|temp_dir| Self { temp_dir })
+            .map(|temp_dir| Self {
+                temp_dir,
+                ssh_key_path,
+            })
             .map_err(|_| Error::other("Failed to create temp dir"))
     }
 
@@ -24,22 +29,20 @@ impl RepoManager {
     ) -> Result<PathBuf, git2::Error> {
         let dest_path = self.temp_dir.path().join(dest_name);
 
+        let ssh_key_path = self.ssh_key_path.clone();
+        let passphrase = env::var(ENV_SSH_PASSPHRASE).ok();
+
         let mut callbacks = RemoteCallbacks::new();
-        let mut attempted = false;
-
-        callbacks.credentials(move |_url, username_from_url, _allowed_types| {
-            if attempted {
-                return Err(git2::Error::from_str("❌ SSH authentication failed"));
-            }
-            attempted = true;
-
-            match username_from_url {
-                Some(username) => Cred::ssh_key_from_agent(username),
+        callbacks.credentials(
+            move |_url, username_from_url, _allowed_types| match username_from_url {
+                Some(username) => {
+                    Cred::ssh_key(username, None, &ssh_key_path, passphrase.as_deref())
+                }
                 None => Err(git2::Error::from_str(
                     "❌ Username for SSH authentication is missing",
                 )),
-            }
-        });
+            },
+        );
 
         let mut fetch_options = FetchOptions::new();
         fetch_options.remote_callbacks(callbacks);
@@ -52,7 +55,9 @@ impl RepoManager {
                 println!("✅ Successfully cloned {repo_url}");
                 Ok(dest_path)
             }
-            Err(_) => Err(git2::Error::from_str("❌ Failed to clone repository.")),
+            Err(err) => Err(git2::Error::from_str(&format!(
+                "❌ Failed to clone repository: {err}"
+            ))),
         }
     }
 
@@ -77,49 +82,13 @@ impl RepoManager {
     }
 }
 
-pub(crate) fn setup_ssh_agent(ssh_key_path: &Path) -> Result<(), git2::Error> {
-    if env::var("SSH_AUTH_SOCK").is_err() {
-        let output = Command::new("ssh-agent")
-            .stdout(Stdio::piped())
-            .output()
-            .map_err(|_| git2::Error::from_str("Failed to start ssh-agent"))?;
-
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        for line in output_str.lines() {
-            if let Some((key, value)) = line.split_once('=') {
-                if key == "SSH_AUTH_SOCK" || key == "SSH_AGENT_PID" {
-                    let value = value.trim_end_matches(';');
-                    env::set_var(key, value);
-                }
-            }
-        }
-    }
-
+pub(crate) fn validate_ssh_key_path(ssh_key_path: &Path) -> Result<(), git2::Error> {
     if !ssh_key_path.exists() {
         return Err(git2::Error::from_str(
-            "SSH key not found at the specified path.",
+            "SSH key not found. Please check the path.",
         ));
     }
 
-    let ssh_add_output = Command::new("ssh-add")
-        .arg(ssh_key_path)
-        .output()
-        .map_err(|_| git2::Error::from_str("Failed to run ssh-add"))?;
-
-    if !ssh_add_output.status.success() {
-        return Err(git2::Error::from_str("Failed to add SSH key to agent."));
-    }
-
-    let ssh_test = Command::new("ssh")
-        .arg("-T")
-        .arg("git@github.com")
-        .output()
-        .map_err(|_| git2::Error::from_str("Failed to execute SSH command"))?;
-
-    let ssh_error = String::from_utf8_lossy(&ssh_test.stderr);
-    if ssh_error.contains("successfully authenticated") {
-        return Ok(());
-    }
-
-    Err(git2::Error::from_str("❌ SSH authentication test failed."))
+    println!("✅ SSH key found: moving forward with cloning.");
+    Ok(())
 }
