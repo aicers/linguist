@@ -27,3 +27,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Supported passphrase-protected SSH keys by reading the `SSH_PASSPHRASE`
   environment variable and passing it into Git2’s `Cred::ssh_key` instead of requiring
   a manual `ssh-add`.
+
+### Changed
+
+- Made `--ssh-key` argument optional. SSH key is now only required when cloning
+  SSH URLs (starting with `git@`). HTTPS URLs can be cloned without an SSH key.
