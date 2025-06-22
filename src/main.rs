@@ -20,7 +20,7 @@ struct Args {
     frontary_path: Option<PathBuf>,
 
     #[arg(long, value_name = "SSH_KEY")]
-    ssh_key: PathBuf,
+    ssh_key: Option<PathBuf>,
 }
 
 const FIXED_EXCLUDED_STRINGS: &[&str] = &[
@@ -145,10 +145,18 @@ const FRONTARY_REPO_NAME: &str = "frontary";
 fn main() -> Result<(), io::Error> {
     let args = Args::parse();
 
-    validate_ssh_key_path(&args.ssh_key).map_err(|e| io::Error::other(e.message().to_owned()))?;
+    // Validate SSH key if provided
+    if let Some(ref ssh_key_path) = args.ssh_key {
+        validate_ssh_key_path(ssh_key_path)
+            .map_err(|e| io::Error::other(e.message().to_owned()))?;
+    }
 
-    let repo_manager = RepoManager::new_with_key(args.ssh_key.clone())
-        .map_err(|e| io::Error::other(format!("Failed to create RepoManager: {e}")))?;
+    let repo_manager = match args.ssh_key.clone() {
+        Some(ssh_key_path) => RepoManager::new_with_key(ssh_key_path)
+            .map_err(|e| io::Error::other(format!("Failed to create RepoManager: {e}")))?,
+        None => RepoManager::new()
+            .map_err(|e| io::Error::other(format!("Failed to create RepoManager: {e}")))?,
+    };
 
     log_repo_strategy(args.ui_path.as_ref(), args.frontary_path.as_ref());
 
