@@ -13,20 +13,11 @@ pub(crate) struct RepoManager {
 }
 
 impl RepoManager {
-    pub(crate) fn new() -> Result<Self, io::Error> {
+    pub(crate) fn new(ssh_key_path: Option<PathBuf>) -> Result<Self, io::Error> {
         TempDir::new()
             .map(|temp_dir| Self {
                 temp_dir,
-                ssh_key_path: None,
-            })
-            .map_err(|_| Error::other("Failed to create temp dir"))
-    }
-
-    pub(crate) fn new_with_key(ssh_key_path: PathBuf) -> Result<Self, io::Error> {
-        TempDir::new()
-            .map(|temp_dir| Self {
-                temp_dir,
-                ssh_key_path: Some(ssh_key_path),
+                ssh_key_path,
             })
             .map_err(|_| Error::other("Failed to create temp dir"))
     }
