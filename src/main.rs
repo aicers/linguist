@@ -151,7 +151,7 @@ fn main() -> Result<(), io::Error> {
             .map_err(|e| io::Error::other(e.message().to_owned()))?;
     }
 
-    let repo_manager = RepoManager::new(args.ssh_key.clone())
+    let repo_manager = RepoManager::new(args.ssh_key)
         .map_err(|e| io::Error::other(format!("Failed to create RepoManager: {e}")))?;
 
     log_repo_strategy(args.ui_path.as_ref(), args.frontary_path.as_ref());
