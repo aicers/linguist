@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use clap::Parser;
 use regex::Regex;
-use repo::{validate_ssh_key_path, RepoManager};
+use repo::{RepoManager, validate_ssh_key_path};
 use serde_json::Value;
 use toml::Value as TomlValue;
 
@@ -99,7 +99,7 @@ const FIXED_FRONTARY_KEY: &[&str] = &[
     "Your password must not contain consecutive repeating characters.",
     "Your password must not contain more than 3 adjacent keyboard characters.",
     "no spaces, more than 7 characters, at least one number/uppercase/lowercase/special characters",
-    "no spaces, more than 8 characters, at least one number/uppercase/lowercase/special characters, no consecutive repetition, and less than 4 adjacent keyboard characters"
+    "no spaces, more than 8 characters, at least one number/uppercase/lowercase/special characters, no consecutive repetition, and less than 4 adjacent keyboard characters",
 ];
 
 const FIXED_UI_KEY: &[&str] = &[
