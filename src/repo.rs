@@ -2,7 +2,7 @@ use std::env;
 use std::io::{self, Error};
 use std::path::{Path, PathBuf};
 
-use git2::{build::RepoBuilder, BranchType, Cred, FetchOptions, RemoteCallbacks, Repository};
+use git2::{BranchType, Cred, FetchOptions, RemoteCallbacks, Repository, build::RepoBuilder};
 use tempfile::TempDir;
 
 const ENV_SSH_PASSPHRASE: &str = "SSH_PASSPHRASE";
@@ -56,7 +56,7 @@ impl RepoManager {
             }
         } else if repo_url.starts_with("git@") {
             return Err(git2::Error::from_str(
-                "❌ SSH URL requires an SSH key. Please provide --ssh-key argument or use HTTPS URL."
+                "❌ SSH URL requires an SSH key. Please provide --ssh-key argument or use HTTPS URL.",
             ));
         }
 
